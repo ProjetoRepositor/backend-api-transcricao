@@ -6,4 +6,4 @@ services:
     ports:
       - 800:80
     volumes:
-      - ~/.aws:~/.aws
+      - /home/ec2-user/.aws:/root/.aws
