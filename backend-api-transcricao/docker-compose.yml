@@ -5,3 +5,5 @@ services:
     build: .
     ports:
       - 800:80
+    volumes:
+      - ~/.aws:~/.aws
