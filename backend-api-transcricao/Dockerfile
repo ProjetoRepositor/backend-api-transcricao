@@ -5,7 +5,7 @@ EXPOSE 443
 
 FROM mcr.microsoft.com/dotnet/sdk:6.0 AS build
 WORKDIR /src
-COPY ["backend-api-transcricao/backend-api-transcricao.csproj", "backend-api-transcricao/"]
+COPY ["backend-api-transcricao.csproj", "backend-api-transcricao/"]
 RUN dotnet restore "backend-api-transcricao/backend-api-transcricao.csproj"
 COPY . .
 WORKDIR "/src/backend-api-transcricao"
