@@ -1,8 +1,11 @@
-﻿using Amazon.S3;
+﻿using System.Text.Json;
+using Amazon.S3;
 using Amazon.S3.Transfer;
 using Amazon.TranscribeService;
 using Amazon.TranscribeService.Model;
+using backend_api_transcricao.Models;
 using Microsoft.AspNetCore.Mvc;
+using System.Text.RegularExpressions;
 
 namespace backend_transcricao.Controllers;
 
@@ -81,10 +84,25 @@ public class AudioController : ControllerBase
             var transcriptFileUri = transcriptionResults.TranscriptionJob.Transcript.TranscriptFileUri;
             // Aqui você pode processar ou retornar os resultados da transcrição
             Console.WriteLine($"Resultados da transcrição disponíveis em: {transcriptFileUri}");
-            return Ok(new
+            
+            var client = new HttpClient();
+            var request = new HttpRequestMessage(HttpMethod.Get, transcriptFileUri);
+            var response = await client.SendAsync(request);
+            response.EnsureSuccessStatusCode();
+            var result = JsonSerializer.Deserialize<RootObject>(await response.Content.ReadAsStringAsync());
+            
+            var responseObject = ProcessarComando(result!.results.transcripts[0].transcript);
+
+            if (responseObject is null)
             {
-                Message = "Transcrição concluída. Resultados disponíveis em: " + transcriptFileUri
-            });
+                return NotFound(new
+                {
+                    Message = "Nenhum comando encontrado",
+                    Text = result!.results.transcripts[0].transcript,
+                });
+            }
+            
+            return Ok(responseObject);
         }
 
         return StatusCode(500, new
@@ -112,4 +130,100 @@ public class AudioController : ControllerBase
             await Task.Delay(1000); // Aguarda 1 segundos antes de verificar novamente o status
         }
     }
+    
+    private object? ProcessarComando(string comando)
+    {
+        // Regex para identificar "dúzia" e outros casos especiais
+        var matchEspecial = Regex.Match(comando, @"Adicionar (\w+) (d\wzia) de ([\w\s]+)");
+        var matchNumeroComposto = Regex.Match(comando, @"Adicionar (\w+) e (\w+) ([\w\s]+)");
+
+        if (matchEspecial.Success)
+        {
+            string quantidade = matchEspecial.Groups[1].Value;
+            string unidade = matchEspecial.Groups[2].Value;
+            string item = matchEspecial.Groups[3].Value;
+
+            int quantidadeFormatada = ConverterQuantidadeTextoParaNumero(quantidade);
+
+            // Converter a quantidade com base na unidade
+            quantidadeFormatada = ConverterQuantidadeEspecialParaNumero(quantidadeFormatada, unidade);
+            return new
+            {
+                Nome = item,
+                Quantidade = quantidadeFormatada,
+            };
+        }
+        else if (matchNumeroComposto.Success)
+        {
+            int dezena = ConverterQuantidadeTextoParaNumero(matchNumeroComposto.Groups[1].Value);
+            int unidade= ConverterQuantidadeTextoParaNumero(matchNumeroComposto.Groups[2].Value);
+
+            int quantidade = dezena+unidade;
+            string item = matchNumeroComposto.Groups[3].Value;
+
+            // Converter a quantidade com base na unidade
+            return new
+            {
+                Nome = item,
+                Quantidade = quantidade,
+            };
+        }
+        
+        // Regex para identificar comandos comuns
+        var matchComum = Regex.Match(comando, @"Adicionar (\w+) ([\w\s]+)");
+        if (matchComum.Success)
+        {
+            string quantidadeTexto = matchComum.Groups[1].Value;
+            string item = matchComum.Groups[2].Value;
+
+            int quantidade = ConverterQuantidadeTextoParaNumero(quantidadeTexto);
+            return new
+            {
+                Nome = "Item",
+                Quantidade = quantidade,
+            };
+            
+        }
+
+        return null;
+    }
+    
+    
+    private int ConverterQuantidadeTextoParaNumero(string quantidadeTexto)
+    {
+        var numeros = new Dictionary<string, int>
+        {
+            { "um", 1 }, { "uma", 1 },
+            { "dois", 2 }, { "duas", 2 },
+            { "três", 3 }, { "tres", 3 },
+            { "quatro", 4 },
+            { "cinco", 5 },
+            { "seis", 6 },
+            { "sete", 7 },
+            { "oito", 8 },
+            { "nove", 9 },
+            { "dez", 10 },
+            { "vinte", 20 },
+            { "trinta", 30 },
+            { "quarenta", 40 },
+            { "cinquenta", 50 }
+            // Continue adicionando conforme necessário
+        };
+
+        return numeros.TryGetValue(quantidadeTexto, out int numero) ? numero : 0;
+    }
+
+    private int ConverterQuantidadeEspecialParaNumero(int quantidade, string unidade)
+    {
+        // Dicionário para unidades especiais
+        var unidades = new Dictionary<string, int>
+        {
+            { "dúzia", 12 },
+            { "duzia", 12 },
+            // Adicione mais unidades conforme necessário
+        };
+
+        return unidades.TryGetValue(unidade, out int valorUnidade) ? quantidade * valorUnidade : quantidade;
+    }
+    
 }
