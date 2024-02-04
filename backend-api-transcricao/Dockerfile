@@ -7,7 +7,7 @@ FROM mcr.microsoft.com/dotnet/sdk:6.0 AS build
 WORKDIR /src
 COPY ["backend-api-transcricao.csproj", "backend-api-transcricao/"]
 RUN dotnet restore "backend-api-transcricao/backend-api-transcricao.csproj"
-COPY . .
+COPY . ./backend-api-transcricao/
 WORKDIR "/src/backend-api-transcricao"
 RUN dotnet build "backend-api-transcricao.csproj" -c Release -o /app/build
 
