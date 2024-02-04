@@ -4,4 +4,4 @@ services:
   transcricao:
     build: .
     ports:
-      - 80:80
+      - 800:80
