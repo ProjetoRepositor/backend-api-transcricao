@@ -1,0 +1,7 @@
+version: "3"
+
+services: 
+  transcricao:
+    build: .
+    ports:
+      - 80:80
