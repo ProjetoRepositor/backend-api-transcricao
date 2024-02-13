@@ -133,7 +133,7 @@ public class AudioController : ControllerBase
     
     private object? ProcessarComando(string comando)
     {
-        comando = comando.Replace(".", "");
+        comando = FiltrarLetrasEEspacos(comando);
         // Regex para identificar "dúzia" e outros casos especiais
         var matchEspecial = Regex.Match(comando, @"adicionar (\w+) (d\wzia) de ([\w\s]+)");
         var matchNumeroComposto = Regex.Match(comando, @"adicionar (\w+) e (\w+) ([\w\s]+)");
@@ -148,6 +148,7 @@ public class AudioController : ControllerBase
 
             // Converter a quantidade com base na unidade
             quantidadeFormatada = ConverterQuantidadeEspecialParaNumero(quantidadeFormatada, unidade);
+            _logger.LogInformation($"Nome: {item}, Quantidade: {quantidadeFormatada}");
             return new
             {
                 Nome = item,
@@ -163,6 +164,7 @@ public class AudioController : ControllerBase
             string item = matchNumeroComposto.Groups[3].Value;
 
             // Converter a quantidade com base na unidade
+            _logger.LogInformation($"Nome: {item}, Quantidade: {quantidade}");
             return new
             {
                 Nome = item,
@@ -178,6 +180,9 @@ public class AudioController : ControllerBase
             string item = matchComum.Groups[2].Value;
 
             int quantidade = ConverterQuantidadeTextoParaNumero(quantidadeTexto);
+
+            _logger.LogInformation($"Nome: {item}, Quantidade: {quantidade}");
+            
             return new
             {
                 Nome = item,
@@ -227,4 +232,10 @@ public class AudioController : ControllerBase
         return unidades.TryGetValue(unidade, out int valorUnidade) ? quantidade * valorUnidade : quantidade;
     }
     
+    
+    static string FiltrarLetrasEEspacos(string input)
+    {
+        // Remove tudo exceto letras e espaços em branco
+        return Regex.Replace(input, @"[^a-zA-Z\s]", "");
+    }
 }
