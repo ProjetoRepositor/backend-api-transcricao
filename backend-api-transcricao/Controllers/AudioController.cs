@@ -13,12 +13,20 @@ namespace backend_transcricao.Controllers;
 [Route("api/[controller]")]
 public class AudioController : ControllerBase
 {
+    private ILogger<AudioController> _logger;
+
+    public AudioController(ILogger<AudioController> logger)
+    {
+        _logger = logger;
+    }
+    
     [HttpPost]
     public async Task<IActionResult> UploadAudio()
     {
         if (!Request.ContentType.Equals("audio/wave"))
         {
-            return BadRequest("Invalid Content-Type. Expected audio/wav");
+            _logger.LogError("Invalid Content-Type. Expected audio/wave");
+            return BadRequest("Invalid Content-Type. Expected audio/wave");
         }
 
         using var memoryStream = new MemoryStream();
