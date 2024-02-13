@@ -233,9 +233,9 @@ public class AudioController : ControllerBase
     }
     
     
-    static string FiltrarLetrasEEspacos(string input)
+    string FiltrarLetrasEEspacos(string input)
     {
-        // Remove tudo exceto letras e espaços em branco
-        return Regex.Replace(input, @"[^a-zA-Z\s]", "");
+        // Remove tudo exceto letras, espaços em branco, acentos e cedilha
+        return Regex.Replace(input, @"[^a-zA-Z\sà-úÀ-Úâ-ûÂ-Ûã-õÃ-ÕçÇ]", "");
     }
 }
