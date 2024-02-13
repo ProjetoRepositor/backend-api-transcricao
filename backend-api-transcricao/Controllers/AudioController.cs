@@ -23,6 +23,8 @@ public class AudioController : ControllerBase
     [HttpPost]
     public async Task<IActionResult> UploadAudio()
     {
+        _logger.LogDebug("Request Recebida");
+        
         if (!Request.ContentType.Equals("audio/wave"))
         {
             _logger.LogError("Invalid Content-Type. Expected audio/wave");
