@@ -134,8 +134,8 @@ public class AudioController : ControllerBase
     private object? ProcessarComando(string comando)
     {
         // Regex para identificar "dúzia" e outros casos especiais
-        var matchEspecial = Regex.Match(comando, @"Adicionar (\w+) (d\wzia) de ([\w\s]+)");
-        var matchNumeroComposto = Regex.Match(comando, @"Adicionar (\w+) e (\w+) ([\w\s]+)");
+        var matchEspecial = Regex.Match(comando, @"adicionar (\w+) (d\wzia) de ([\w\s]+)");
+        var matchNumeroComposto = Regex.Match(comando, @"adicionar (\w+) e (\w+) ([\w\s]+)");
 
         if (matchEspecial.Success)
         {
