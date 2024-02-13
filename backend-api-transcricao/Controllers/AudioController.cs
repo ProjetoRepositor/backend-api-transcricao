@@ -47,6 +47,9 @@ public class AudioController : ControllerBase
         var s3Key = $"{jobName}/{jobName}.wav";
 
         var mediaFileUri = $"s3://{bucketName}/{s3Key}"; // Substitua "bucket-name" pelo seu bucket S3
+        
+        _logger.LogDebug(mediaFileUri);
+        
         var mediaFormat = "wav";
 
         var s3Client = new AmazonS3Client();
