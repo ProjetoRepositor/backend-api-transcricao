@@ -14,29 +14,16 @@ namespace backend_transcricao.Controllers;
 public class AudioController : ControllerBase
 {
     [HttpPost]
-    public async Task<IActionResult> UploadAudio(IFormFile? file)
+    public async Task<IActionResult> UploadAudio()
     {
-        if (file == null || file.Length == 0)
+        if (!Request.ContentType.Equals("audio/wave"))
         {
-            return BadRequest(new
-            {
-                Message = "Nenhum arquivo enviado",
-            });
-        }
-
-        // Corrija o Content-Type esperado para "audio/wave" ou "audio/wav", dependendo do que você está recebendo.
-        var allowedContentTypes = new[] { "audio/wave", "audio/wav" };
-        if (!allowedContentTypes.Contains(file.ContentType))
-        {
-            return BadRequest(new
-            {
-                Message = "O arquivo deve ser do tipo WAV."
-            });
+            return BadRequest("Invalid Content-Type. Expected audio/wav");
         }
 
         using var memoryStream = new MemoryStream();
 
-        await file.CopyToAsync(memoryStream);
+        await Request.Body.CopyToAsync(memoryStream);
         Console.WriteLine($"Tamanho do arquivo WAV recebido: {memoryStream.Length} bytes");
 
         // Configuração das credenciais e cliente do AWS Transcribe
@@ -47,7 +34,7 @@ public class AudioController : ControllerBase
 
         var bucketName = "tcccarrinhointeligentetranscribe";
 
-        var s3Key = $"{jobName}/{file.FileName}";
+        var s3Key = $"{jobName}/{jobName}.wav";
 
         var mediaFileUri = $"s3://{bucketName}/{s3Key}"; // Substitua "bucket-name" pelo seu bucket S3
         var mediaFormat = "wav";
@@ -133,6 +120,7 @@ public class AudioController : ControllerBase
     
     private object? ProcessarComando(string comando)
     {
+        comando = comando.Replace(".", "");
         // Regex para identificar "dúzia" e outros casos especiais
         var matchEspecial = Regex.Match(comando, @"adicionar (\w+) (d\wzia) de ([\w\s]+)");
         var matchNumeroComposto = Regex.Match(comando, @"adicionar (\w+) e (\w+) ([\w\s]+)");
@@ -170,7 +158,7 @@ public class AudioController : ControllerBase
         }
         
         // Regex para identificar comandos comuns
-        var matchComum = Regex.Match(comando, @"Adicionar (\w+) ([\w\s]+)");
+        var matchComum = Regex.Match(comando, @"adicionar (\w+) ([\w\s]+)");
         if (matchComum.Success)
         {
             string quantidadeTexto = matchComum.Groups[1].Value;
@@ -179,7 +167,7 @@ public class AudioController : ControllerBase
             int quantidade = ConverterQuantidadeTextoParaNumero(quantidadeTexto);
             return new
             {
-                Nome = "Item",
+                Nome = item,
                 Quantidade = quantidade,
             };
             
