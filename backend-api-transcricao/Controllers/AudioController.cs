@@ -21,7 +21,7 @@ public class AudioController : ControllerBase
     }
     
     [HttpPost]
-    public async Task<IActionResult> UploadAudio()
+    public async Task<IActionResult> UploadAudio([FromHeader] string token)
     {
         _logger.LogDebug("Request Recebida");
         
@@ -101,6 +101,8 @@ public class AudioController : ControllerBase
                     Text = result!.results.transcripts[0].transcript,
                 });
             }
+
+            await AdicionaAoCarrinho(responseObject.Item, responseObject.Quantidade, token);
             
             return Ok(responseObject);
         }
@@ -131,7 +133,7 @@ public class AudioController : ControllerBase
         }
     }
     
-    private object? ProcessarComando(string comando)
+    private ComandoResponse? ProcessarComando(string comando)
     {
         comando = FiltrarLetrasEEspacos(comando);
         // Regex para identificar "dúzia" e outros casos especiais
@@ -149,9 +151,9 @@ public class AudioController : ControllerBase
             // Converter a quantidade com base na unidade
             quantidadeFormatada = ConverterQuantidadeEspecialParaNumero(quantidadeFormatada, unidade);
             _logger.LogInformation($"Nome: {item}, Quantidade: {quantidadeFormatada}");
-            return new
+            return new ComandoResponse
             {
-                Nome = item,
+                Item = item,
                 Quantidade = quantidadeFormatada,
             };
         }
@@ -165,9 +167,9 @@ public class AudioController : ControllerBase
 
             // Converter a quantidade com base na unidade
             _logger.LogInformation($"Nome: {item}, Quantidade: {quantidade}");
-            return new
+            return new ComandoResponse
             {
-                Nome = item,
+                Item = item,
                 Quantidade = quantidade,
             };
         }
@@ -183,9 +185,9 @@ public class AudioController : ControllerBase
 
             _logger.LogInformation($"Nome: {item}, Quantidade: {quantidade}");
             
-            return new
+            return new ComandoResponse
             {
-                Nome = item,
+                Item = item,
                 Quantidade = quantidade,
             };
             
@@ -237,5 +239,17 @@ public class AudioController : ControllerBase
     {
         // Remove tudo exceto letras, espaços em branco, acentos e cedilha
         return Regex.Replace(input, @"[^a-zA-Z\sà-úÀ-Úâ-ûÂ-Ûã-õÃ-ÕçÇ]", "");
+    }
+
+    async Task AdicionaAoCarrinho(string produto, int quantidade, string token)
+    {
+        var client = new HttpClient();
+        var request = new HttpRequestMessage(HttpMethod.Post, "https://rq0ak44zy0.execute-api.sa-east-1.amazonaws.com/Prod/api/v1/carrinho");
+        request.Headers.Add("token", token);
+        var content = new StringContent("{\"codigoDeBarras\":\""+produto+"\",\"quantidade\":"+quantidade+"}", null, "application/json");
+        request.Content = content;
+        var response = await client.SendAsync(request);
+        response.EnsureSuccessStatusCode();
+        Console.WriteLine(await response.Content.ReadAsStringAsync());
     }
 }
