@@ -3,7 +3,8 @@ version: "3"
 services: 
   transcricao:
     build: .
+    restart: always
     ports:
       - 800:80
     volumes:
-      - /home/ec2-user/.aws:/root/.aws
+      - /home/victor/.aws:/root/.aws
