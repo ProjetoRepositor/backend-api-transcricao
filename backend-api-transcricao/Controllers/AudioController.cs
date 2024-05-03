@@ -53,9 +53,13 @@ public class AudioController : ControllerBase
         var mediaFormat = "wav";
 
         var s3Client = new AmazonS3Client();
-        
+ 
+        _logger.LogInformation("Enviando arquivo para S3");
+       
         var s3TransferUtility = new TransferUtility(s3Client);
         await s3TransferUtility.UploadAsync(new MemoryStream(memoryStream.ToArray()), bucketName, s3Key);
+
+        _logger.LogInformation("Iniciando Transcricao");
 
         var startTranscriptionRequest = new StartTranscriptionJobRequest
         {
