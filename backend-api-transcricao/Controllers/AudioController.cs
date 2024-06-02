@@ -13,19 +13,77 @@ namespace backend_transcricao.Controllers;
 [Route("api/[controller]")]
 public class AudioController : ControllerBase
 {
+    private const string ApiUrl = "https://rq0ak44zy0.execute-api.sa-east-1.amazonaws.com/Prod";
     private ILogger<AudioController> _logger;
+    private HttpClient _httpClient;
 
     public AudioController(ILogger<AudioController> logger)
     {
         _logger = logger;
+        _httpClient = new HttpClient();
     }
+
+    private async Task AtualizaStatus(
+        string token,
+        string IdTranscricao,
+        string SituacaoAtual,
+        string? TextoRecebido = null,
+        string? ProdutoEncontrado = null,
+        int? Quantidade = null
+        ) 
+    {
+        var request = new HttpRequestMessage(HttpMethod.Post, $"{ApiUrl}/api/v1/status");
+        request.Headers.Add("token", token);
+        var jsonRequest = JsonSerializer.Serialize(new
+        {
+            IdTranscricao,
+            SituacaoAtual,
+            TextoRecebido,
+            ProdutoEncontrado,
+            Quantidade,
+        });
+        var content = new StringContent(jsonRequest, null, "application/json");
+        request.Content = content;
+        var response = await _httpClient.SendAsync(request);
+        await VinculaTranscricao(token, IdTranscricao);
+        Console.WriteLine(await response.Content.ReadAsStringAsync());
+    }
+
+    private async Task VinculaTranscricao(string token, string idTranscricao)
+    {
+        Console.WriteLine("Vinculando Transcrição");
+        var request = new HttpRequestMessage(HttpMethod.Post, $"{ApiUrl}/api/v1/transcricoes");
+        request.Headers.Add("token", token);
+        var jsonRequest = JsonSerializer.Serialize(new
+        {
+            idTranscricao
+        });
+        var content = new StringContent(jsonRequest, null, "application/json");
+        request.Content = content;
+        var response = await _httpClient.SendAsync(request);
+        Console.WriteLine(await response.Content.ReadAsStringAsync());
+    }
+
+    // private async Task AtualizaStatus(string idTranscricao, string situacaoAtual)
+    // {
+    //     var client = new HttpClient();
+    //     var request = new HttpRequestMessage(HttpMethod.Post, "https://localhost:5001/api/v1/status");
+    //     request.Headers.Add("token", "sjnNsksbiKYxRNrWbK86");
+    //     var content = new StringContent(JsonSerializer.Serialize(new
+    //     {
+    //         IdTranscricao = idTranscricao,
+    //         SituacaoAtual = situacaoAtual,
+    //     }), null, "application/json");
+    //     request.Content = content;
+    //     await client.SendAsync(request);
+    // }
     
     [HttpPost]
     public async Task<IActionResult> UploadAudio([FromHeader] string token)
     {
         _logger.LogDebug("Request Recebida");
         
-        if (!Request.ContentType.Equals("audio/wave"))
+        if (Request.ContentType is not "audio/wave")
         {
             _logger.LogError("Invalid Content-Type. Expected audio/wave");
             return BadRequest("Invalid Content-Type. Expected audio/wave");
@@ -41,6 +99,8 @@ public class AudioController : ControllerBase
 
         // Preparação da solicitação de transcrição
         var jobName = Guid.NewGuid().ToString(); // Nome único para o trabalho de transcrição
+
+        await AtualizaStatus(token, jobName,"Arquivo Recebido");
 
         var bucketName = "tcccarrinhointeligentetranscribe";
 
@@ -58,6 +118,8 @@ public class AudioController : ControllerBase
        
         var s3TransferUtility = new TransferUtility(s3Client);
         await s3TransferUtility.UploadAsync(new MemoryStream(memoryStream.ToArray()), bucketName, s3Key);
+        
+        await AtualizaStatus(token, jobName,"Arquivo enviado para o S3");
 
         _logger.LogInformation("Iniciando Transcricao");
 
@@ -71,50 +133,60 @@ public class AudioController : ControllerBase
             TranscriptionJobName = jobName,
             MediaFormat = mediaFormat,
         };
-
+        
         // Inicia o trabalho de transcrição
         await transcribeClient.StartTranscriptionJobAsync(startTranscriptionRequest);
+        
+        await AtualizaStatus(token, jobName,"Transcrição em andamento");
 
         var transcriptionStatus = await WaitForTranscriptionCompletionAsync(transcribeClient, jobName);
-        
-        if (transcriptionStatus == TranscriptionJobStatus.COMPLETED)
+
+        if (transcriptionStatus != TranscriptionJobStatus.COMPLETED)
         {
-            // Recupera os resultados da transcrição
-            var transcriptionResults = await transcribeClient.GetTranscriptionJobAsync(new GetTranscriptionJobRequest
+            await AtualizaStatus(token, jobName,"Transcrição falhou");
+            
+            return StatusCode(500, new
             {
-                TranscriptionJobName = jobName
+                Message = "A transcrição falhou"
             });
-
-            var transcriptFileUri = transcriptionResults.TranscriptionJob.Transcript.TranscriptFileUri;
-            // Aqui você pode processar ou retornar os resultados da transcrição
-            Console.WriteLine($"Resultados da transcrição disponíveis em: {transcriptFileUri}");
+        }
+        
+        await AtualizaStatus(token, jobName,"Transcrição concluída, buscando resultados");
             
-            var client = new HttpClient();
-            var request = new HttpRequestMessage(HttpMethod.Get, transcriptFileUri);
-            var response = await client.SendAsync(request);
-            response.EnsureSuccessStatusCode();
-            var result = JsonSerializer.Deserialize<RootObject>(await response.Content.ReadAsStringAsync());
-            
-            var responseObject = ProcessarComando(result!.results.transcripts[0].transcript);
+        // Recupera os resultados da transcrição
+        var transcriptionResults = await transcribeClient.GetTranscriptionJobAsync(new GetTranscriptionJobRequest
+        {
+            TranscriptionJobName = jobName
+        });
 
-            if (responseObject is null)
+        var transcriptFileUri = transcriptionResults.TranscriptionJob.Transcript.TranscriptFileUri;
+        // Aqui você pode processar ou retornar os resultados da transcrição
+        // Console.WriteLine($"Resultados da transcrição disponíveis em: {transcriptFileUri}");
+            
+        var request = new HttpRequestMessage(HttpMethod.Get, transcriptFileUri);
+        var response = await _httpClient.SendAsync(request);
+        response.EnsureSuccessStatusCode();
+        var result = JsonSerializer.Deserialize<RootObject>(await response.Content.ReadAsStringAsync())!;
+
+        var texto = result.results.transcripts[0].transcript;
+            
+        var responseObject = ProcessarComando(texto);
+
+        await AtualizaStatus(token, jobName,"Transcrição Concluída", texto, responseObject?.Item, responseObject?.Quantidade);
+            
+        if (responseObject is null)
+        {
+            return NotFound(new
             {
-                return NotFound(new
-                {
-                    Message = "Nenhum comando encontrado",
-                    Text = result!.results.transcripts[0].transcript,
-                });
-            }
-
-            await AdicionaAoCarrinho(responseObject.Item, responseObject.Quantidade, token);
-            
-            return Ok(responseObject);
+                Message = "Nenhum comando encontrado",
+                Text = result!.results.transcripts[0].transcript,
+            });
         }
 
-        return StatusCode(500, new
-        {
-            Message = "A transcrição falhou"
-        });
+        await AdicionaAoCarrinho(responseObject.Item, responseObject.Quantidade, token);
+            
+        return Ok(responseObject);
+
     }
     
     private async Task<TranscriptionJobStatus> WaitForTranscriptionCompletionAsync(AmazonTranscribeServiceClient transcribeClient, string jobName)
